@@ -4,26 +4,32 @@ import (
 	"fmt"
 	"github.com/bwmarrin/discordgo"
 	"github.com/joho/godotenv"
+	"github.com/nicklaw5/helix/v2"
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 )
+
+type ChannelStatus struct {
+	DisplayName string
+	IsLive      bool
+}
 
 func main() {
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
-	discord, err := discordgo.New("Bot " + os.Getenv("TWITCH_TOKEN"))
+	discord, err := discordgo.New("Bot " + os.Getenv("DISCORD_TOKEN"))
 	defer discord.Close()
 
 	if err != nil {
 		fmt.Println("Can't initialize discord connection")
 		return
 	}
-
 
 	discord.AddHandler(messageCreate)
 
@@ -42,7 +48,7 @@ func main() {
 
 /**
 ADD More commands
- */
+*/
 func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	var botID = "<@!" + s.State.User.ID + ">"
 	// Ignore all messages created by the bot itself
@@ -59,12 +65,40 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	var cleanContent = strings.ReplaceAll(m.Content, botID, "")
 	cleanContent = strings.TrimSpace(cleanContent)
 
-	if cleanContent == "ping" {
-		s.ChannelMessageSend(m.ChannelID, "Pong!")
-	}
+	if cleanContent == "show-live" {
+		client, err := helix.NewClient(&helix.Options{
+			ClientID:     os.Getenv("TWITCH_CLIENT_ID"),
+			ClientSecret: os.Getenv("TWITCH_CLIENT_SECRET"),
+		})
 
-	// If the message is "pong" reply with "Ping!"
-	if cleanContent == "pong" {
-		s.ChannelMessageSend(m.ChannelID, "Ping!")
+		if err != nil {
+			panic(err)
+		}
+
+		resps, errs := client.RequestAppAccessToken([]string{"user:read:email"})
+		if errs != nil {
+			// handle error
+		}
+
+		fmt.Printf("%+v\n", resps)
+
+		// Set the access token on the client
+		client.SetAppAccessToken(resps.Data.AccessToken)
+
+		channelToCheck := [6]string{"Gorgc", "xAlloMilo", "pokimane", "paljada", "TechTourist", "koomaneko"}
+
+		var channelStatus []ChannelStatus
+		for _, channel := range channelToCheck {
+			channelInformation, _ := client.SearchChannels(&helix.SearchChannelsParams{
+				Channel: channel,
+				First:   1,
+			})
+
+			fmt.Println(channelInformation.Data.Channels)
+			channelStatus = append(channelStatus, ChannelStatus{DisplayName: channelInformation.Data.Channels[0].DisplayName, IsLive: channelInformation.Data.Channels[0].IsLive})
+		}
+		for _, channel := range channelStatus {
+			s.ChannelMessageSend(m.ChannelID, channel.DisplayName+strconv.FormatBool(channel.IsLive))
+		}
 	}
 }
