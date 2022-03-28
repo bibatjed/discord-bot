@@ -8,7 +8,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 )
@@ -65,7 +64,17 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	var cleanContent = strings.ReplaceAll(m.Content, botID, "")
 	cleanContent = strings.TrimSpace(cleanContent)
 
-	if cleanContent == "show-live" {
+	splitString := strings.Split(cleanContent, " ")
+
+	if len(splitString) <= 0 {
+		return
+	}
+
+	if splitString[0] == "is-live" {
+
+		if len(splitString) < 2 {
+			return
+		}
 		client, err := helix.NewClient(&helix.Options{
 			ClientID:     os.Getenv("TWITCH_CLIENT_ID"),
 			ClientSecret: os.Getenv("TWITCH_CLIENT_SECRET"),
@@ -80,25 +89,27 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			// handle error
 		}
 
-		fmt.Printf("%+v\n", resps)
-
 		// Set the access token on the client
 		client.SetAppAccessToken(resps.Data.AccessToken)
 
-		channelToCheck := [6]string{"Gorgc", "xAlloMilo", "pokimane", "paljada", "TechTourist", "koomaneko"}
+		channelInformation, _ := client.SearchChannels(&helix.SearchChannelsParams{
+			Channel: splitString[1],
+			First:   1,
+		})
 
-		var channelStatus []ChannelStatus
-		for _, channel := range channelToCheck {
-			channelInformation, _ := client.SearchChannels(&helix.SearchChannelsParams{
-				Channel: channel,
-				First:   1,
-			})
+		if len(channelInformation.Data.Channels) <= 0 {
+			s.ChannelMessageSend(m.ChannelID, "Not found")
+			return
+		}
 
-			fmt.Println(channelInformation.Data.Channels)
-			channelStatus = append(channelStatus, ChannelStatus{DisplayName: channelInformation.Data.Channels[0].DisplayName, IsLive: channelInformation.Data.Channels[0].IsLive})
+		isLive := &channelInformation.Data.Channels[0].IsLive
+
+		var channelStatus = "Not Live"
+
+		if *isLive {
+			channelStatus = "Live"
 		}
-		for _, channel := range channelStatus {
-			s.ChannelMessageSend(m.ChannelID, channel.DisplayName+strconv.FormatBool(channel.IsLive))
-		}
+
+		s.ChannelMessageSend(m.ChannelID, channelInformation.Data.Channels[0].DisplayName+": "+channelStatus)
 	}
 }
