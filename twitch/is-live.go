@@ -24,21 +24,30 @@ func init() {
 		panic(err)
 	}
 
-}
-
-func IsLive(channel string) *ChannelStatus {
 	resps, errs := client.RequestAppAccessToken([]string{"user:read:email"})
 	if errs != nil {
 		// handle error
 	}
 
-	// Set the access token on the client
+	//Set the access token on the client
 	client.SetAppAccessToken(resps.Data.AccessToken)
+}
 
+func IsLive(channel string, retry int) *ChannelStatus {
 	channelInformation, _ := client.SearchChannels(&helix.SearchChannelsParams{
 		Channel: channel,
 		First:   1,
 	})
+
+	if retry > 0 && channelInformation.StatusCode == 401 {
+		resps, errs := client.RequestAppAccessToken([]string{"user:read:email"})
+		if errs != nil {
+			// handle error
+		}
+		client.SetAppAccessToken(resps.Data.AccessToken)
+		retry -= 1
+		return IsLive(channel, retry)
+	}
 
 	if len(channelInformation.Data.Channels) <= 0 {
 		return &ChannelStatus{Status: "not_found"}

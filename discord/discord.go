@@ -64,7 +64,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			return
 		}
 
-		result := twitch.IsLive(splitString[1])
+		result := twitch.IsLive(splitString[1], 3)
 
 		if result.Status == "not_found" {
 			s.ChannelMessageSend(m.ChannelID, "Not found")
