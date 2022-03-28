@@ -47,6 +47,7 @@ func main() {
 
 /**
 ADD More commands
+IMPLEMENT REFRESH TOKEN FOR TWITCH
 */
 func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	var botID = "<@!" + s.State.User.ID + ">"
